@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "KNK Kafé Pantry",
+  "short_name": "KNK Pantry",
+  "description": "Receive KNK Kafé orders and update their status.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#efe8de",
+  "theme_color": "#57573c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
