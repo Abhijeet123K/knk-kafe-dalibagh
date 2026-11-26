@@ -125,3 +125,29 @@ const KNKSound = (() => {
   return { unlock: unlock, play: play };
 })();
 document.addEventListener('pointerdown', () => KNKSound.unlock(), { passive: true });
+
+/* ---------- Theme: Auto / Light / Dark (saved on this phone) ---------- */
+(function () {
+  const ORDER = ['auto', 'light', 'dark'];
+  const LABEL = { auto: '◐ Auto', light: '☀ Light', dark: '☾ Dark' };
+  let current = 'auto';
+  try { current = localStorage.getItem('knk_theme') || 'auto'; } catch (e) {}
+  const get = () => current;
+  function apply(t) {
+    const root = document.documentElement;
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    const b = document.getElementById('themeBtn');
+    if (b) { b.textContent = LABEL[t]; b.title = 'Theme: ' + t + ' (tap to change)'; }
+  }
+  apply(get()); // runs in <head>, so there is no flash of the wrong theme
+  document.addEventListener('DOMContentLoaded', () => {
+    apply(get());
+    const b = document.getElementById('themeBtn');
+    if (b) b.addEventListener('click', () => {
+      const next = ORDER[(ORDER.indexOf(get()) + 1) % ORDER.length];
+      current = next;
+      try { localStorage.setItem('knk_theme', next); } catch (e) {}
+      apply(next);
+    });
+  });
+})();

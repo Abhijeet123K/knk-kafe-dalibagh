@@ -21,11 +21,17 @@
   --olive:#57573c; --olive-ink:#f3ead9; --gold:#b48650; --gold-2:#e4bf82; --tint:#e6ddcf;
   --ok:#4f6b3a; --error:#a33b2c;
 }
+/* Theme: Auto follows the phone; the Theme button can force Light or Dark */
 @media (prefers-color-scheme: dark){
-  :root{ --paper:#1d1c16; --surface:#27261e; --ink:#efe6d9; --muted:#a99b8a; --line:#3a382d;
+  :root:not([data-theme="light"]){ --paper:#1d1c16; --surface:#27261e; --ink:#efe6d9; --muted:#a99b8a; --line:#3a382d;
          --olive:#3f402b; --olive-ink:#efe6d9; --gold:#c99d62; --gold-2:#ecc98f; --tint:#2f2e24;
          --ok:#5f7f45; --error:#b5503f; }
 }
+:root[data-theme="dark"]{ --paper:#1d1c16; --surface:#27261e; --ink:#efe6d9; --muted:#a99b8a; --line:#3a382d;
+         --olive:#3f402b; --olive-ink:#efe6d9; --gold:#c99d62; --gold-2:#ecc98f; --tint:#2f2e24;
+         --ok:#5f7f45; --error:#b5503f; }
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font-family:'Figtree',system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
@@ -119,7 +125,7 @@ main{max-width:1240px;margin:0 auto;padding:20px}
 .install{border:1px solid var(--gold-2);background:transparent;color:var(--gold-2);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600}
 
 /* use our own dark design; stop the phone from force-darkening or side-scrolling the page */
-:root{color-scheme:light dark}
+:root:not([data-theme]){color-scheme:light dark}
 html,body{overflow-x:hidden;max-width:100%}
 </style>
 </head>
@@ -127,7 +133,7 @@ html,body{overflow-x:hidden;max-width:100%}
 <header class="top">
   <div class="top-in">
     <h1 class="logo"><span><small>KNK</small><span class="kafe">Kafé</span></span><span class="pt" id="stLabel">Kitchen</span></h1>
-    <div class="hdr-r"><div><button class="install" id="testSound">Test sound</button> <button class="install hidden" id="switchBtn">Switch</button> <button class="install hidden" id="installBtn">Install app</button></div>
+    <div class="hdr-r"><div><button class="install" id="testSound">Test sound</button> <button class="install hidden" id="switchBtn">Switch</button> <button class="install" id="themeBtn" aria-label="Change theme">◐ Auto</button> <button class="install hidden" id="installBtn">Install app</button></div>
     <div class="sync hidden" id="sync"><span class="dot"></span><span id="syncTxt">Connecting…</span></div></div>
   </div>
 </header>
