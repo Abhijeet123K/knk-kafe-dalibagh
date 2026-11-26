@@ -125,6 +125,16 @@ textarea{resize:vertical;min-height:56px}
 .sheet-card h2{font-family:'Marcellus',serif;font-weight:400;font-size:26px;margin:0 0 4px}
 .sheet-card .sub{color:var(--muted);margin:0 0 14px}
 .sheet-card ul{margin:0 0 20px;padding-left:18px}
+/* order for: client / myself */
+.seg{display:flex;gap:4px;background:var(--tint);border-radius:12px;padding:4px}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:10px;border-radius:9px;font-weight:600}
+.seg button[aria-checked="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(40,25,10,.12)}
+.for{color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:no-preference){
+  .seg button{transition:background-color .2s ease,color .2s ease,box-shadow .2s ease}
+  #clientField.show{animation:rise .25s cubic-bezier(.2,.8,.2,1)}
+}
+
 /* success tick */
 .okmark{width:56px;height:56px;margin:0 0 12px}
 .okmark svg{width:100%;height:100%;fill:none;stroke:var(--ok);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
@@ -191,6 +201,17 @@ textarea{resize:vertical;min-height:56px}
       <label class="lbl" for="name">Your name</label>
       <input id="name" list="staffList" autocomplete="name" placeholder="Type your name">
       <datalist id="staffList"></datalist>
+    </div>
+    <div class="field">
+      <span class="lbl" id="forLbl">Order for</span>
+      <div class="seg" role="radiogroup" aria-labelledby="forLbl">
+        <button type="button" role="radio" data-for="client">Client</button>
+        <button type="button" role="radio" data-for="self">Myself</button>
+      </div>
+    </div>
+    <div class="field" id="clientField">
+      <label class="lbl" for="client">Client name</label>
+      <input id="client" autocomplete="off" maxlength="80" placeholder="e.g. Mrs. Sharma">
     </div>
     <div class="chips" id="chips"></div>
     <div id="menu"><p class="msg">Loading menu…</p></div>
@@ -260,9 +281,22 @@ const store = {
 /* ---------- Small animation helpers ---------- */
 function replay(el, cls){ if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 
+/* ---------- Order for: client / myself ---------- */
+function setFor(mode){
+  S.forMode = mode === 'self' ? 'self' : 'client';
+  store.set('knk_for', S.forMode);
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.for === S.forMode)));
+  const f = $('#clientField');
+  f.classList.toggle('hidden', S.forMode !== 'client');
+  if (S.forMode === 'client') replay(f, 'show');
+}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setFor(b.dataset.for));
+const forText = o => o.forWho ? 'for ' + o.forWho : 'for self';
+
 /* ---------- Init ---------- */
 window.addEventListener('load', () => {
   $('#name').value = store.get('knk_name');
+  setFor(store.get('knk_for') || 'client');
   greet(); setRange(0);
   api('getInitData').then(init)
     .catch(e => $('#menu').innerHTML = '<p class="msg">Menu could not load: ' + esc(e.message) + '</p>');
@@ -342,7 +376,7 @@ function renderLive(){
     const msg = ready ? '<div class="live-msg">Your order is ready.</div>'
               : cancelled ? '<div class="live-msg">' + esc(stationOf(o)) + ' cancelled this order. Please check with them.</div>' : '';
     return '<div class="live' + (ready ? ' ready' : '') + (cancelled ? ' cancelled' : '') + (fresh ? ' enter' : '') + (changed ? ' now' : '') + '">' +
-      '<div class="live-top"><span>' + esc(stationOf(o)) + ', ordered ' + esc(o.time) + '</span><span class="st st-' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
+      '<div class="live-top"><span><span class="for">' + esc(forText(o)) + '</span>, ' + esc(stationOf(o)) + ', ' + esc(o.time) + '</span><span class="st st-' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
       '<div class="live-items">' + esc(itemsText(o)) + '</div>' + track + msg + '</div>';
   }).join('');
 }
@@ -351,7 +385,7 @@ function announce(o){
   const text = {
     Received: stationOf(o) + ' received your order.',
     Preparing: stationOf(o) + ' is preparing your order.',
-    Ready: 'Ready at ' + stationOf(o) + ': ' + itemsText(o),
+    Ready: 'Ready at ' + stationOf(o) + ' (' + forText(o) + '): ' + itemsText(o),
     Delivered: 'Order delivered. Enjoy!',
     Cancelled: stationOf(o) + ' cancelled your order (' + itemsText(o) + ').'
   }[o.status];
@@ -430,23 +464,25 @@ $('#placeBtn').onclick = () => {
   const err = $('#orderErr');
   err.classList.add('hidden');
   if (!name) { err.textContent = 'Enter your name before placing the order.'; err.classList.remove('hidden'); $('#name').focus(); return; }
+  const forClient = S.forMode === 'client' ? $('#client').value.trim() : '';
+  if (S.forMode === 'client' && !forClient) { err.textContent = 'Enter the client’s name, or choose Myself.'; err.classList.remove('hidden'); $('#client').focus(); return; }
   const items = Object.keys(S.cart).map(k => ({ item: k, qty: S.cart[k] }));
   const btn = $('#placeBtn'); btn.disabled = true; btn.textContent = 'Placing…';
   store.set('knk_name', name);
-  api('placeOrder', { name: name, note: $('#note').value, items: items })
+  api('placeOrder', { name: name, forClient: forClient, note: $('#note').value, items: items })
     .then(res => {
       btn.textContent = 'Place order';
-      $('#doneSub').textContent = name + ', ' + res.date + ' at ' + res.time;
+      $('#doneSub').textContent = (forClient ? 'For ' + forClient + ', by ' + name : name) + ', ' + res.date + ' at ' + res.time;
       $('#doneList').innerHTML = res.orders.map(o => '<li><b>' + esc(stationOf(o)) + ':</b> ' + esc(itemsText(o)) + '</li>').join('');
       $('#done').classList.remove('hidden');
       replay($('#done .sheet-card'), 'x'); // restart the tick animation
       KNKSound.play('update');
       $('#doneBtn').focus();
-      S.cart = {}; $('#note').value = '';
+      S.cart = {}; $('#note').value = ''; $('#client').value = '';
       renderMenu(); updateBar();
       res.orders.forEach(o => {
         S.seen[o.id] = 'Placed';
-        S.my.unshift({ id: o.id, t: res.t, time: res.time, items: o.items, station: o.station, status: 'Placed' });
+        S.my.unshift({ id: o.id, t: res.t, time: res.time, items: o.items, station: o.station, forWho: forClient, status: 'Placed' });
       });
       renderLive(); loadMine(true);
     })
@@ -490,6 +526,7 @@ function renderHistory(list){
     '<div class="order"><div class="otop"><span class="oname">' + esc(o.name) + '</span><span class="st st-' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
     '<div class="owhen">' + esc(o.date) + ', ' + esc(o.time) + ', ' + esc(stationOf(o)) + '</div>' +
     '<div class="olist">' + esc(itemsText(o)) + '</div>' +
+    (o.forWho ? '<div class="onote">For client: ' + esc(o.forWho) + '</div>' : '') +
     (o.note ? '<div class="onote">Note: ' + esc(o.note) + '</div>' : '') +
     (o.log ? '<div class="olog">' + esc(o.log) + '</div>' : '') + '</div>'
   ).join('');

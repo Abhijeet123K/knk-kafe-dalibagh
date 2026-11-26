@@ -4,7 +4,7 @@ KNK Kafé app – setup (GitHub)
    Who has access: Anyone. Web app URL copy karo.
 2. GitHub > New repository (Public), naam jaise knk-kafe-dalibagh.
 3. "uploading an existing file" > is folder ke ANDAR ki saari files/folders drag karo
-   (index.html, config.js, common.js, staff, counter, pantry). Commit.
+   (index.html, config.js, common.js, staff, kitchen, counter, pantry). Commit.
 4. Add file > Create new file > naam: .github/workflows/deploy.yml
    deploy.yml ka content paste karo > Commit.
 5. Settings > Pages > Source: GitHub Actions.
@@ -13,5 +13,4 @@ KNK Kafé app – setup (GitHub)
 7. Actions tab > "Deploy KNK Kafé app" > Run workflow (ya koi bhi commit karo).
 8. App links:
    https://<github-username>.github.io/knk-kafe-dalibagh/staff/
-   https://<github-username>.github.io/knk-kafe-dalibagh/counter/
-   https://<github-username>.github.io/knk-kafe-dalibagh/pantry/
+   https://<github-username>.github.io/knk-kafe-dalibagh/kitchen/   (Kafé counter + Pantry, PIN se)

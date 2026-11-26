@@ -1,5 +1,5 @@
 // Network first, so updates show up right away; cached copy is used only when offline.
-const CACHE = 'knk-staff-v2';
+const CACHE = 'knk-staff-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', '../config.js', '../common.js'];
 
 self.addEventListener('install', e => {
