@@ -2,6 +2,7 @@ name: Build Android APK
 
 # Run it from the Actions tab: "Build Android APK" > Run workflow.
 # Builds KNK-Kafe.apk (staff) and KNK-Kitchen.apk (Kafé counter + Pantry)
+# straight from the live web apps' manifests (no hand-written Android settings).
 # and publishes them on the repo's Releases page with a permanent download link.
 
 on:
@@ -48,8 +49,39 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Bubblewrap
-        run: npm install -g @bubblewrap/cli
+      - name: Install Bubblewrap tools
+        run: |
+          mkdir -p twa-tools && cd twa-tools
+          npm init -y > /dev/null
+          npm install @bubblewrap/core
+          cat > make.js <<'JS'
+          // Builds a complete Android project from the app's own web manifest,
+          // so every setting matches the Bubblewrap version in use.
+          const { TwaManifest, TwaGenerator, ConsoleLog } = require('@bubblewrap/core');
+          const Color = require('color');
+          (async () => {
+            const [manifestUrl, packageId, name, outDir, code, orientation] = process.argv.slice(2);
+            const m = await TwaManifest.fromWebManifest(manifestUrl);
+            m.packageId = packageId;
+            m.name = name;
+            m.launcherName = name;
+            m.appVersionCode = Number(code);
+            m.appVersionName = '1.' + code;
+            m.enableNotifications = false;
+            m.minSdkVersion = 24; // required by androidbrowserhelper 2.7.x
+            m.themeColorDark = new Color('#3F402B');
+            m.navigationColor = new Color('#57573C');
+            m.navigationColorDark = new Color('#3F402B');
+            m.navigationDividerColor = new Color('#57573C');
+            m.navigationDividerColorDark = new Color('#3F402B');
+            m.fallbackType = 'customtabs';
+            m.orientation = orientation;
+            m.signingKey = { path: process.env.GITHUB_WORKSPACE + '/knk.keystore', alias: 'knk' };
+            await m.saveToFile(outDir + '/twa-manifest.json');
+            await new TwaGenerator().createTwaProject(outDir, m, new ConsoleLog('twa'));
+            console.log('Android project ready: ' + packageId + ' (minSdk ' + m.minSdkVersion + ')');
+          })().catch(e => { console.error(e); process.exit(1); });
+          JS
 
       # The signing key is made on the first run, stored in the repo ENCRYPTED with
       # KNK_KEY_PASSWORD, and reused on every later run (same key = apps can be updated).
@@ -75,25 +107,15 @@ jobs:
             | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' > fingerprint.txt
           echo "Signing fingerprint: $(cat fingerprint.txt)"
 
-      - name: Bubblewrap settings
-        run: |
-          mkdir -p ~/.bubblewrap
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
-
       - name: Build and sign both APKs
         run: |
           set -e
-          for app in kafe kitchen; do
-            if [ "$app" = "kafe" ]; then out="KNK-Kafe.apk"; else out="KNK-Kitchen.apk"; fi
-            rm -rf "build-$app" && mkdir "build-$app" && cd "build-$app"
-            jq --arg ks "$GITHUB_WORKSPACE/knk.keystore" --argjson code ${{ github.run_number }} \
-              '.signingKey.path = $ks
-               | .minSdkVersion = 24
-               | .appVersionCode = $code
-               | .appVersionName = ("1." + ($code | tostring))
-               | .appVersion = .appVersionName' \
-              "../apk/$app.twa-manifest.json" > twa-manifest.json
-            bubblewrap update --skipVersionUpgrade
+          SITE="https://abhijeet123k.github.io/knk-kafe-dalibagh"
+          build() {
+            app="$1"; pkg="$2"; name="$3"; orient="$4"; out="$5"
+            rm -rf "build-$app" && mkdir "build-$app"
+            node twa-tools/make.js "$SITE/$app/manifest.webmanifest" "$pkg" "$name" "build-$app" "${{ github.run_number }}" "$orient"
+            cd "build-$app"
             chmod +x gradlew
             ./gradlew assembleRelease --no-daemon
             BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
@@ -101,8 +123,11 @@ jobs:
             "$BT/apksigner" sign --ks "$GITHUB_WORKSPACE/knk.keystore" --ks-key-alias knk \
               --ks-pass env:KNK_KEY_PASSWORD --key-pass env:KNK_KEY_PASSWORD \
               --out "../$out" aligned.apk
+            "$BT/apksigner" verify "../$out"
             cd ..
-          done
+          }
+          build staff   com.knkawadh.kafe    "KNK Kafé"    portrait KNK-Kafe.apk
+          build kitchen com.knkawadh.kitchen "KNK Kitchen" default  KNK-Kitchen.apk
           ls -la *.apk
 
       - name: Make assetlinks.json (removes the address bar inside the apps)
