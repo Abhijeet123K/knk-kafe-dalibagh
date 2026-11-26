@@ -88,6 +88,7 @@ jobs:
             rm -rf "build-$app" && mkdir "build-$app" && cd "build-$app"
             jq --arg ks "$GITHUB_WORKSPACE/knk.keystore" --argjson code ${{ github.run_number }} \
               '.signingKey.path = $ks
+               | .minSdkVersion = 24
                | .appVersionCode = $code
                | .appVersionName = ("1." + ($code | tostring))
                | .appVersion = .appVersionName' \
