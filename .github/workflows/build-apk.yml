@@ -1,0 +1,131 @@
+name: Build Android APK
+
+# Run it from the Actions tab: "Build Android APK" > Run workflow.
+# Builds KNK-Kafe.apk (staff) and KNK-Kitchen.apk (Kafé counter + Pantry)
+# and publishes them on the repo's Releases page with a permanent download link.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      KNK_KEY_PASSWORD: ${{ secrets.KNK_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the signing password secret
+        run: |
+          if [ -z "$KNK_KEY_PASSWORD" ]; then
+            echo "::error::Add the secret KNK_KEY_PASSWORD first (Settings > Secrets and variables > Actions > Secrets)."
+            exit 1
+          fi
+          if [ ${#KNK_KEY_PASSWORD} -lt 12 ]; then
+            echo "::error::KNK_KEY_PASSWORD must be at least 12 characters."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      # The signing key is made on the first run, stored in the repo ENCRYPTED with
+      # KNK_KEY_PASSWORD, and reused on every later run (same key = apps can be updated).
+      - name: Signing key (create once, then reuse)
+        run: |
+          set -e
+          if [ -f apk/knk.keystore.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+              -in apk/knk.keystore.enc -out knk.keystore -pass env:KNK_KEY_PASSWORD
+          else
+            keytool -genkeypair -keystore knk.keystore -alias knk -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KNK_KEY_PASSWORD" -keypass "$KNK_KEY_PASSWORD" \
+              -dname "CN=KNK Awadh, O=KNK Awadh Salon and Academy, L=Lucknow, C=IN"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+              -in knk.keystore -out apk/knk.keystore.enc -pass env:KNK_KEY_PASSWORD
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add apk/knk.keystore.enc
+            git commit -m "Add encrypted APK signing key"
+            git push
+          fi
+          keytool -list -v -keystore knk.keystore -alias knk -storepass "$KNK_KEY_PASSWORD" \
+            | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' > fingerprint.txt
+          echo "Signing fingerprint: $(cat fingerprint.txt)"
+
+      - name: Bubblewrap settings
+        run: |
+          mkdir -p ~/.bubblewrap
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
+
+      - name: Build and sign both APKs
+        run: |
+          set -e
+          for app in kafe kitchen; do
+            if [ "$app" = "kafe" ]; then out="KNK-Kafe.apk"; else out="KNK-Kitchen.apk"; fi
+            rm -rf "build-$app" && mkdir "build-$app" && cd "build-$app"
+            jq --arg ks "$GITHUB_WORKSPACE/knk.keystore" --argjson code ${{ github.run_number }} \
+              '.signingKey.path = $ks
+               | .appVersionCode = $code
+               | .appVersionName = ("1." + ($code | tostring))
+               | .appVersion = .appVersionName' \
+              "../apk/$app.twa-manifest.json" > twa-manifest.json
+            bubblewrap update --skipVersionUpgrade
+            chmod +x gradlew
+            ./gradlew assembleRelease --no-daemon
+            BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+            "$BT/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+            "$BT/apksigner" sign --ks "$GITHUB_WORKSPACE/knk.keystore" --ks-key-alias knk \
+              --ks-pass env:KNK_KEY_PASSWORD --key-pass env:KNK_KEY_PASSWORD \
+              --out "../$out" aligned.apk
+            cd ..
+          done
+          ls -la *.apk
+
+      - name: Make assetlinks.json (removes the address bar inside the apps)
+        run: |
+          FP=$(cat fingerprint.txt)
+          jq -n --arg fp "$FP" '[
+            {relation: ["delegate_permission/common.handle_all_urls"],
+             target: {namespace: "android_app", package_name: "com.knkawadh.kafe", sha256_cert_fingerprints: [$fp]}},
+            {relation: ["delegate_permission/common.handle_all_urls"],
+             target: {namespace: "android_app", package_name: "com.knkawadh.kitchen", sha256_cert_fingerprints: [$fp]}}
+          ]' > assetlinks.json
+          {
+            echo "## APKs ready"
+            echo ""
+            echo "- Staff app: https://github.com/${{ github.repository }}/releases/latest/download/KNK-Kafe.apk"
+            echo "- Kitchen app: https://github.com/${{ github.repository }}/releases/latest/download/KNK-Kitchen.apk"
+            echo ""
+            echo "Signing fingerprint: \`$FP\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f knk.keystore
+
+      - name: Publish on the Releases page
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: KNK Kafé apps, build ${{ github.run_number }}
+          make_latest: true
+          body: |
+            KNK-Kafe.apk: staff app (order for a client or for yourself)
+            KNK-Kitchen.apk: Kafé counter and Pantry app (opens your station by PIN)
+            assetlinks.json: goes in the Abhijeet123K.github.io repo as .well-known/assetlinks.json
+          files: |
+            KNK-Kafe.apk
+            KNK-Kitchen.apk
+            assetlinks.json
