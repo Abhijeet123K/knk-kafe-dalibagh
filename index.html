@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KNK Kafé</title>
 <meta name="theme-color" content="#57573c">
@@ -13,6 +14,10 @@ h1{font-family:Georgia,serif;font-style:italic;font-weight:600;font-size:40px;ma
 p{opacity:.85;margin:0 0 26px}
 a{display:block;margin:0 auto 12px;max-width:300px;padding:15px;border-radius:12px;background:#e4bf82;color:#3a2418;font-weight:700;text-decoration:none}
 a.alt{background:transparent;border:1px solid #e4bf82;color:#e4bf82}
+
+/* use our own dark design; stop the phone from force-darkening or side-scrolling the page */
+:root{color-scheme:light dark}
+html,body{overflow-x:hidden;max-width:100%}
 </style>
 </head>
 <body>

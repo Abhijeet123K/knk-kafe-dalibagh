@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KNK Kafé</title>
 <meta name="theme-color" content="#57573c">
@@ -125,6 +126,16 @@ textarea{resize:vertical;min-height:56px}
 .sheet-card h2{font-family:'Marcellus',serif;font-weight:400;font-size:26px;margin:0 0 4px}
 .sheet-card .sub{color:var(--muted);margin:0 0 14px}
 .sheet-card ul{margin:0 0 20px;padding-left:18px}
+/* name lock + links */
+.namerow{display:flex;gap:8px}
+.namerow input{flex:1;min-width:0}
+.namerow .btn{padding:12px 16px;flex:none}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.me{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--tint);border-radius:12px;padding:12px 14px;margin-bottom:18px}
+.link{background:none;border:0;color:var(--gold);font-weight:600;padding:6px 0;text-decoration:underline;text-underline-offset:3px}
+.hseg{margin-bottom:18px}
+.again{margin-top:10px;padding:9px 14px}
+
 /* order for: client / myself */
 .seg{display:flex;gap:4px;background:var(--tint);border-radius:12px;padding:4px}
 .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:10px;border-radius:9px;font-weight:600}
@@ -178,6 +189,10 @@ textarea{resize:vertical;min-height:56px}
 .top{padding-top:env(safe-area-inset-top,0px)}
 .hdr-r{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .install{border:1px solid var(--gold-2);background:transparent;color:var(--gold-2);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600}
+
+/* use our own dark design; stop the phone from force-darkening or side-scrolling the page */
+:root{color-scheme:light dark}
+html,body{overflow-x:hidden;max-width:100%}
 </style>
 </head>
 <body>
@@ -197,10 +212,18 @@ textarea{resize:vertical;min-height:56px}
   <!-- ORDER -->
   <section id="tab-order">
     <div id="live" aria-live="polite"></div>
-    <div class="field">
+    <div class="field hidden" id="nameField">
       <label class="lbl" for="name">Your name</label>
-      <input id="name" list="staffList" autocomplete="name" placeholder="Type your name">
+      <div class="namerow">
+        <input id="name" list="staffList" autocomplete="off" placeholder="Choose your name">
+        <button type="button" class="btn" id="lockBtn">Confirm</button>
+      </div>
       <datalist id="staffList"></datalist>
+      <p class="hint">Choose your name from the list. This phone will then be set to your name.</p>
+    </div>
+    <div class="me hidden" id="meRow">
+      <span>Ordering as <b id="meName"></b></span>
+      <button type="button" class="link" id="notMe">Not you?</button>
     </div>
     <div class="field">
       <span class="lbl" id="forLbl">Order for</span>
@@ -211,7 +234,9 @@ textarea{resize:vertical;min-height:56px}
     </div>
     <div class="field" id="clientField">
       <label class="lbl" for="client">Client name</label>
-      <input id="client" autocomplete="off" maxlength="80" placeholder="e.g. Mrs. Sharma">
+      <input id="client" list="clientList" autocomplete="off" maxlength="80" placeholder="e.g. Mrs. Sharma">
+      <datalist id="clientList"></datalist>
+      <button type="button" class="link" id="clientPast">See this client’s past orders</button>
     </div>
     <div class="chips" id="chips"></div>
     <div id="menu"><p class="msg">Loading menu…</p></div>
@@ -223,19 +248,31 @@ textarea{resize:vertical;min-height:56px}
 
   <!-- HISTORY -->
   <section id="tab-history" class="hidden">
-    <div class="filters">
-      <div class="full">
-        <label class="lbl" for="hName">Name</label>
-        <input id="hName" list="staffList" placeholder="Leave blank to see everyone">
-      </div>
-      <div><label class="lbl" for="hFrom">From</label><input type="date" id="hFrom"></div>
-      <div><label class="lbl" for="hTo">To</label><input type="date" id="hTo"></div>
+    <div class="seg hseg" role="radiogroup" aria-label="Which orders">
+      <button type="button" role="radio" data-h="mine" aria-checked="true">My orders</button>
+      <button type="button" role="radio" data-h="client" aria-checked="false">Client orders</button>
     </div>
-    <div class="quick">
-      <button class="btn light" data-range="0">Today</button>
-      <button class="btn light" data-range="1">Yesterday</button>
-      <button class="btn light" data-range="7">Last 7 days</button>
-      <button class="btn" id="hGo">Show orders</button>
+    <div id="hMine">
+      <div class="filters">
+        <div><label class="lbl" for="hFrom">From</label><input type="date" id="hFrom"></div>
+        <div><label class="lbl" for="hTo">To</label><input type="date" id="hTo"></div>
+      </div>
+      <div class="quick">
+        <button class="btn light" data-range="0">Today</button>
+        <button class="btn light" data-range="1">Yesterday</button>
+        <button class="btn light" data-range="7">Last 7 days</button>
+        <button class="btn" id="hGo">Show orders</button>
+      </div>
+    </div>
+    <div id="hClientBox" class="hidden">
+      <div class="field">
+        <label class="lbl" for="hClient">Client name</label>
+        <div class="namerow">
+          <input id="hClient" list="clientList" autocomplete="off" placeholder="e.g. Mrs. Sharma">
+          <button type="button" class="btn" id="hClientGo">Show</button>
+        </div>
+        <p class="hint">All past orders for this client, by any staff member.</p>
+      </div>
     </div>
     <div id="history"></div>
   </section>
@@ -275,7 +312,8 @@ const ymd = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') 
 const itemsText = o => o.items.map(i => i.item + ' × ' + i.qty).join(', ');
 const store = {
   get(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } },
-  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} }
 };
 
 /* ---------- Small animation helpers ---------- */
@@ -285,17 +323,46 @@ function replay(el, cls){ if (!el) return; el.classList.remove(cls); void el.off
 function setFor(mode){
   S.forMode = mode === 'self' ? 'self' : 'client';
   store.set('knk_for', S.forMode);
-  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.for === S.forMode)));
+  document.querySelectorAll('[data-for]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.for === S.forMode)));
   const f = $('#clientField');
   f.classList.toggle('hidden', S.forMode !== 'client');
   if (S.forMode === 'client') replay(f, 'show');
 }
-document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setFor(b.dataset.for));
+document.querySelectorAll('[data-for]').forEach(b => b.onclick = () => setFor(b.dataset.for));
 const forText = o => o.forWho ? 'for ' + o.forWho : 'for self';
+
+/* ---------- Name lock: this phone orders as one staff member ---------- */
+function applyLock(){
+  $('#nameField').classList.toggle('hidden', !!S.locked);
+  $('#meRow').classList.toggle('hidden', !S.locked);
+  $('#meName').textContent = S.locked;
+  $('#name').value = S.locked || $('#name').value;
+  greet();
+}
+$('#lockBtn').onclick = () => {
+  const typed = $('#name').value.trim();
+  const match = S.staff.find(n => n.toLowerCase() === typed.toLowerCase());
+  const name = S.staff.length ? match : typed;
+  if (!name) { toast(S.staff.length ? 'Choose your name from the list.' : 'Type your name.', 'Cancelled'); $('#name').focus(); return; }
+  if (!confirm('This phone will order as ' + name + '. Only HR can change it later. Continue?')) return;
+  S.locked = name; store.set('knk_name_locked', name); store.set('knk_name', name);
+  S.seen = {}; applyLock(); loadMine(true);
+};
+$('#notMe').onclick = () => {
+  const code = prompt('To change the name on this phone, enter the HR reset code:');
+  if (!code) return;
+  api('checkResetCode', code).then(() => {
+    S.locked = ''; store.del('knk_name_locked'); store.del('knk_name');
+    $('#name').value = ''; S.my = []; S.seen = {}; renderLive(); applyLock();
+    toast('Name unlocked. Choose the right name.', 'Received');
+  }).catch(e => toast(e.message, 'Cancelled'));
+};
 
 /* ---------- Init ---------- */
 window.addEventListener('load', () => {
-  $('#name').value = store.get('knk_name');
+  S.locked = store.get('knk_name_locked');
+  $('#name').value = S.locked || store.get('knk_name');
+  applyLock();
   setFor(store.get('knk_for') || 'client');
   greet(); setRange(0);
   api('getInitData').then(init)
@@ -304,16 +371,20 @@ window.addEventListener('load', () => {
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadMine(true); });
 $('#name').addEventListener('input', greet);
-$('#name').addEventListener('change', () => { store.set('knk_name', $('#name').value.trim()); S.seen = {}; loadMine(true); });
 
 function init(data){
-  S.menu = data.menu; S.staff = data.staff;
+  S.menu = data.menu; S.staff = data.staff; S.clients = data.clients || [];
   $('#staffList').innerHTML = S.staff.map(n => '<option value="' + esc(n) + '">').join('');
+  fillClients();
   renderChips(); renderMenu(); updateBar();
 }
 
+function fillClients(){
+  $('#clientList').innerHTML = (S.clients || []).map(n => '<option value="' + esc(n) + '">').join('');
+}
+
 function greet(){
-  const n = $('#name').value.trim().split(' ')[0];
+  const n = (S.locked || '').split(' ')[0];
   const h = new Date().getHours();
   const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   $('#greet').textContent = n ? part + ', ' + n : part;
@@ -327,16 +398,13 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   $('#tab-history').classList.toggle('hidden', tab !== 'history');
   replay($('#tab-' + tab), 'pane-in');
   $('#bar').classList.toggle('hidden', tab !== 'order');
-  if (tab === 'history') {
-    if (!$('#hName').value) $('#hName').value = $('#name').value.trim();
-    loadHistory();
-  }
+  if (tab === 'history') loadHistory();
 }));
 
 /* ---------- Live status of my orders ---------- */
 function loadMine(force){
   clearTimeout(S.timer);
-  const name = $('#name').value.trim();
+  const name = S.locked;
   if (!name) { S.my = []; renderLive(); return; }
   api('getMyOrders', name, force ? '' : S.rev)
     .then(res => {
@@ -460,15 +528,14 @@ function updateBar(animate){
 /* ---------- Place order ---------- */
 $('#placeBtn').onclick = () => {
   KNKSound.unlock();
-  const name = $('#name').value.trim();
+  const name = S.locked;
   const err = $('#orderErr');
   err.classList.add('hidden');
-  if (!name) { err.textContent = 'Enter your name before placing the order.'; err.classList.remove('hidden'); $('#name').focus(); return; }
+  if (!name) { err.textContent = 'Confirm your name at the top first.'; err.classList.remove('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' }); $('#name').focus(); return; }
   const forClient = S.forMode === 'client' ? $('#client').value.trim() : '';
   if (S.forMode === 'client' && !forClient) { err.textContent = 'Enter the client’s name, or choose Myself.'; err.classList.remove('hidden'); $('#client').focus(); return; }
   const items = Object.keys(S.cart).map(k => ({ item: k, qty: S.cart[k] }));
   const btn = $('#placeBtn'); btn.disabled = true; btn.textContent = 'Placing…';
-  store.set('knk_name', name);
   api('placeOrder', { name: name, forClient: forClient, note: $('#note').value, items: items })
     .then(res => {
       btn.textContent = 'Place order';
@@ -478,6 +545,7 @@ $('#placeBtn').onclick = () => {
       replay($('#done .sheet-card'), 'x'); // restart the tick animation
       KNKSound.play('update');
       $('#doneBtn').focus();
+      if (forClient && !(S.clients || []).some(c => c.toLowerCase() === forClient.toLowerCase())) { S.clients.unshift(forClient); fillClients(); }
       S.cart = {}; $('#note').value = ''; $('#client').value = '';
       renderMenu(); updateBar();
       res.orders.forEach(o => {
@@ -508,30 +576,76 @@ function setRange(days){
 document.querySelectorAll('[data-range]').forEach(b => b.onclick = () => { setRange(+b.dataset.range); loadHistory(); });
 $('#hGo').onclick = loadHistory;
 
+S.hMode = 'mine';
+function setHMode(mode){
+  S.hMode = mode;
+  document.querySelectorAll('[data-h]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.h === mode)));
+  $('#hMine').classList.toggle('hidden', mode !== 'mine');
+  $('#hClientBox').classList.toggle('hidden', mode !== 'client');
+}
+document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { setHMode(b.dataset.h); loadHistory(); });
+$('#hClientGo').onclick = loadHistory;
+$('#hClient').addEventListener('keydown', e => { if (e.key === 'Enter') loadHistory(); });
+
 function loadHistory(){
-  $('#history').innerHTML = '<p class="msg">Loading orders…</p>';
-  api('getHistory', { name: $('#hName').value, from: $('#hFrom').value, to: $('#hTo').value })
-    .then(renderHistory)
-    .catch(e => $('#history').innerHTML = '<p class="msg">Orders could not load: ' + esc(e.message) + '</p>');
+  const box = $('#history');
+  if (S.hMode === 'client') {
+    const c = $('#hClient').value.trim();
+    if (!c) { box.innerHTML = '<p class="msg">Type or choose a client name.</p>'; return; }
+    box.innerHTML = '<p class="msg">Loading orders…</p>';
+    api('getClientHistory', c).then(list => renderHistory(list, true))
+      .catch(e => box.innerHTML = '<p class="msg">Orders could not load: ' + esc(e.message) + '</p>');
+    return;
+  }
+  if (!S.locked) { box.innerHTML = '<p class="msg">Confirm your name on the Order tab first.</p>'; return; }
+  box.innerHTML = '<p class="msg">Loading orders…</p>';
+  api('getHistory', { name: S.locked, from: $('#hFrom').value, to: $('#hTo').value })
+    .then(list => renderHistory(list, false))
+    .catch(e => box.innerHTML = '<p class="msg">Orders could not load: ' + esc(e.message) + '</p>');
 }
 
-function renderHistory(list){
-  if (!list.length) { $('#history').innerHTML = '<p class="msg">No orders for this name and date range.</p>'; return; }
+function renderHistory(list, clientMode){
+  S.hList = list;
+  if (!list.length) { $('#history').innerHTML = '<p class="msg">' + (clientMode ? 'No past orders for this client.' : 'No orders in this date range.') + '</p>'; return; }
   const totals = {};
   list.filter(o => o.status !== 'Cancelled').forEach(o => o.items.forEach(i => totals[i.item] = (totals[i.item] || 0) + i.qty));
   const tHtml = '<div class="totals"><h3>Total quantity</h3><div class="tgrid">' +
     Object.keys(totals).sort((a, b) => totals[b] - totals[a]).map(k => '<span>' + esc(k) + ' <b>' + totals[k] + '</b></span>').join('') +
     '</div></div>';
-  const oHtml = list.map(o =>
-    '<div class="order"><div class="otop"><span class="oname">' + esc(o.name) + '</span><span class="st st-' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
+  const oHtml = list.map((o, n) =>
+    '<div class="order"><div class="otop"><span class="oname">' + esc(clientMode ? o.date : (o.forWho ? 'For ' + o.forWho : 'For myself')) + '</span><span class="st st-' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
     '<div class="owhen">' + esc(o.date) + ', ' + esc(o.time) + ', ' + esc(stationOf(o)) + '</div>' +
     '<div class="olist">' + esc(itemsText(o)) + '</div>' +
-    (o.forWho ? '<div class="onote">For client: ' + esc(o.forWho) + '</div>' : '') +
+    (clientMode ? '<div class="onote">Ordered by ' + esc(o.name) + '</div>' : '') +
     (o.note ? '<div class="onote">Note: ' + esc(o.note) + '</div>' : '') +
-    (o.log ? '<div class="olog">' + esc(o.log) + '</div>' : '') + '</div>'
+    (o.log ? '<div class="olog">' + esc(o.log) + '</div>' : '') +
+    (clientMode ? '<button type="button" class="btn light again" data-again="' + n + '">Order again</button>' : '') + '</div>'
   ).join('');
   $('#history').innerHTML = tHtml + '<div class="count">' + list.length + (list.length === 1 ? ' order' : ' orders') + '</div>' + oHtml;
 }
+
+/* ---------- Client: past orders + order again ---------- */
+function showTab(name){ document.querySelector('.tab[data-tab="' + name + '"]').click(); }
+
+$('#history').addEventListener('click', e => {
+  const b = e.target.closest('[data-again]');
+  if (!b) return;
+  const o = S.hList[+b.dataset.again];
+  const onMenu = {}; S.menu.forEach(m => onMenu[m.item] = true);
+  S.cart = {};
+  const missing = [];
+  o.items.forEach(i => { if (onMenu[i.item]) S.cart[i.item] = Math.min(MAX_QTY, (S.cart[i.item] || 0) + i.qty); else missing.push(i.item); });
+  setFor('client'); $('#client').value = o.forWho;
+  S.cat = 'All'; renderChips(); renderMenu(); showTab('order'); updateBar(true);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast(missing.length ? 'Added. Not available today: ' + missing.join(', ') : 'Added to your order. Check and tap Place order.', missing.length ? 'Cancelled' : 'Received');
+});
+
+$('#clientPast').onclick = () => {
+  const c = $('#client').value.trim();
+  if (!c) { $('#client').focus(); toast('Type the client’s name first.', 'Cancelled'); return; }
+  setHMode('client'); $('#hClient').value = c; showTab('history');
+};
 </script>
 </body>
 </html>
